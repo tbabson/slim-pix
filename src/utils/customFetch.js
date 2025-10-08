@@ -6,7 +6,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://slimpix.onrender.c
 // Create axios instance with default config
 const customFetch = axios.create({
     baseURL: API_BASE_URL,
-    timeout: 60000, // 60 seconds for image processing
+    timeout: 300000, // 5 minutes for image processing
     headers: {
         'Content-Type': 'application/json',
     },
@@ -72,6 +72,7 @@ export const uploadImages = async (files, quality = 'medium', format = null) => 
         headers: {
             'Content-Type': 'multipart/form-data',
         },
+        timeout: 300000, // 5 minutes
     });
 
     return response.data;
