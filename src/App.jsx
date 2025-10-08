@@ -97,11 +97,15 @@ function App() {
         {/* Header */}
         <div className="text-center mb-10">
           <div className="flex items-center justify-center mb-4">
-            <ImageIcon className="w-12 h-12 text-primary-600" />
+            <img
+              src="./slimpix.svg"
+              alt="slimpix"
+              className="w-100 h-32 mb-0 object-contain"
+            />
           </div>
-          <h1 className="text-4xl font-bold text-gray-800 mb-2">SlimPix</h1>
+          {/* <h1 className="text-4xl font-bold text-gray-800 mb-2">SlimPix</h1> */}
           <p className="text-gray-600">
-            Compress your images without losing quality
+            Compress and convert your images without losing quality
           </p>
         </div>
 
@@ -264,9 +268,12 @@ function App() {
                 </div>
               </div>
               {/* Download Button */}
-              href={result.downloadUrl}
-              className="btn-primary inline-flex items-center mb-4" download
-              <a>
+
+              <a
+                href={result.downloadUrl}
+                className="btn-primary inline-flex items-center mb-4"
+                download
+              >
                 <Download className="w-5 h-5 mr-2" />
                 Download ZIP
               </a>
