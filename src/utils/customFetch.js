@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // API base URL - change this to your backend URL
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://slim-pix-zn9c.vercel.app/';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://slimpix.onrender.com/';
 
 // Create axios instance with default config
 const customFetch = axios.create({
