@@ -52,7 +52,7 @@ customFetch.interceptors.response.use(
 );
 
 // API methods
-export const uploadImages = async (files, quality = 'medium', format = null) => {
+export const uploadImages = async (files, quality = 'medium', format = null, onProgress = null) => {
     const formData = new FormData();
 
     // Append each file
@@ -73,6 +73,12 @@ export const uploadImages = async (files, quality = 'medium', format = null) => 
             'Content-Type': 'multipart/form-data',
         },
         timeout: 300000, // 5 minutes
+        onUploadProgress: (progressEvent) => {
+            if (onProgress && progressEvent.total) {
+                const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+                onProgress(percentCompleted);
+            }
+        },
     });
 
     return response.data;

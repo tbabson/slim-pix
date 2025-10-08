@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
   Upload,
   Download,
+  Image,
+  X,
+  CheckCircle2,
   Loader2,
-  CheckCircle,
-  XCircle,
-  ImageIcon,
 } from "lucide-react";
 import { uploadImages } from "./utils/customFetch";
 
@@ -13,76 +13,55 @@ function App() {
   const [files, setFiles] = useState([]);
   const [quality, setQuality] = useState("medium");
   const [format, setFormat] = useState("");
-  const [uploading, setUploading] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [downloadUrl, setDownloadUrl] = useState("");
   const [result, setResult] = useState(null);
-  const [error, setError] = useState(null);
-  const [dragActive, setDragActive] = useState(false);
+  const [error, setError] = useState("");
+  const fileInputRef = useRef(null);
 
-  // Handle file selection
-  const handleFileChange = (e) => {
+  const handleFileSelect = (e) => {
     const selectedFiles = Array.from(e.target.files);
-    setFiles(selectedFiles);
-    setError(null);
-    setResult(null);
+    const imageFiles = selectedFiles.filter((file) =>
+      file.type.startsWith("image/")
+    );
+
+    if (imageFiles.length !== selectedFiles.length) {
+      setError("Some files were skipped. Only image files are allowed.");
+    } else {
+      setError("");
+    }
+
+    setFiles((prevFiles) => [...prevFiles, ...imageFiles]);
   };
 
-  // Handle drag and drop
-  const handleDrag = (e) => {
+  const handleDragOver = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    if (e.type === "dragenter" || e.type === "dragover") {
-      setDragActive(true);
-    } else if (e.type === "dragleave") {
-      setDragActive(false);
-    }
   };
 
   const handleDrop = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    setDragActive(false);
 
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const droppedFiles = Array.from(e.dataTransfer.files).filter((file) =>
-        file.type.startsWith("image/")
-      );
-      setFiles(droppedFiles);
-      setError(null);
-      setResult(null);
-    }
-  };
+    const droppedFiles = Array.from(e.dataTransfer.files);
+    const imageFiles = droppedFiles.filter((file) =>
+      file.type.startsWith("image/")
+    );
 
-  // Handle upload
-  const handleUpload = async () => {
-    if (files.length === 0) {
-      setError("Please select at least one image");
-      return;
+    if (imageFiles.length !== droppedFiles.length) {
+      setError("Some files were skipped. Only image files are allowed.");
+    } else {
+      setError("");
     }
 
-    setUploading(true);
-    setError(null);
-    setResult(null);
-
-    try {
-      const data = await uploadImages(files, quality, format || null);
-      setResult(data);
-    } catch (err) {
-      setError(err.message || "Upload failed. Please try again.");
-    } finally {
-      setUploading(false);
-    }
+    setFiles((prevFiles) => [...prevFiles, ...imageFiles]);
   };
 
-  // Reset form
-  const handleReset = () => {
-    setFiles([]);
-    setQuality("medium");
-    setFormat("");
-    setResult(null);
-    setError(null);
+  const removeFile = (index) => {
+    setFiles(files.filter((_, i) => i !== index));
   };
 
-  // Format file size
   const formatFileSize = (bytes) => {
     if (bytes === 0) return "0 Bytes";
     const k = 1024;
@@ -91,203 +70,299 @@ function App() {
     return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + " " + sizes[i];
   };
 
+  const handleUpload = async () => {
+    if (files.length === 0) {
+      setError("Please select at least one image");
+      return;
+    }
+
+    setIsProcessing(true);
+    setError("");
+    setDownloadUrl("");
+    setUploadProgress(0);
+
+    try {
+      const uploadResult = await uploadImages(
+        files,
+        quality,
+        format || null,
+        (progress) => {
+          setUploadProgress(progress);
+        }
+      );
+
+      setResult(uploadResult); // Store the result
+      setDownloadUrl(uploadResult.downloadUrl);
+      setUploadProgress(100);
+    } catch (err) {
+      setError(err.message || "Upload failed. Please try again.");
+      setUploadProgress(0);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const reset = () => {
+    setFiles([]);
+    setDownloadUrl("");
+    setError("");
+    setUploadProgress(0);
+    setResult(null); // Reset result too
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const handleDownload = () => {
+    if (downloadUrl) {
+      window.open(downloadUrl, "_blank");
+    }
+  };
+
   return (
-    <div className="min-h-screen py-8 px-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 py-12 px-4">
       <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-10">
+        <div className="text-center mb-8">
           <div className="flex items-center justify-center mb-4">
             <img
               src="./slimpix.svg"
               alt="slimpix"
-              className="w-100 h-32 mb-0 object-contain"
+              className="w-100 h-32 -mb-5 object-contain"
             />
           </div>
-          {/* <h1 className="text-4xl font-bold text-gray-800 mb-2">SlimPix</h1> */}
           <p className="text-gray-600">
-            Compress and convert your images without losing quality
+            Compress and convert your images easily and efficiently.
           </p>
         </div>
 
-        {/* Main Card */}
-        <div className="card">
-          {!result ? (
-            <>
-              {/* File Upload Area */}
-              <div
-                className={`border-2 border-dashed rounded-lg p-8 mb-6 text-center transition-colors ${
-                  dragActive
-                    ? "border-primary-500 bg-primary-50"
-                    : "border-gray-300 hover:border-primary-400"
-                }`}
-                onDragEnter={handleDrag}
-                onDragLeave={handleDrag}
-                onDragOver={handleDrag}
-                onDrop={handleDrop}
-              >
-                <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-lg font-semibold text-gray-700 mb-2">
-                  Drag & drop images here
-                </p>
-                <p className="text-gray-500 mb-4">or</p>
-                <label className="btn-primary cursor-pointer inline-block">
-                  Browse Files
-                  <input
-                    type="file"
-                    multiple
-                    accept="image/*"
-                    onChange={handleFileChange}
-                    className="hidden"
-                  />
-                </label>
-                <p className="text-sm text-gray-500 mt-4">
-                  Supports: JPG, PNG, WebP, GIF (Max 10 files, 5MB each)
-                </p>
-              </div>
-
-              {/* Selected Files */}
-              {files.length > 0 && (
-                <div className="mb-6">
-                  <h3 className="font-semibold text-gray-700 mb-3">
-                    Selected Files ({files.length})
-                  </h3>
-                  <div className="space-y-2 max-h-40 overflow-y-auto">
-                    {files.map((file, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center justify-between bg-gray-50 p-3 rounded-lg"
-                      >
-                        <span className="text-sm text-gray-700 truncate flex-1">
-                          {file.name}
-                        </span>
-                        <span className="text-sm text-gray-500 ml-2">
-                          {formatFileSize(file.size)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Settings */}
-              <div className="grid md:grid-cols-2 gap-4 mb-6">
-                {/* Quality Setting */}
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Compression Quality
-                  </label>
-                  <select
-                    value={quality}
-                    onChange={(e) => setQuality(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  >
-                    <option value="low">Low (Smallest file size)</option>
-                    <option value="medium">Medium (Balanced)</option>
-                    <option value="high">High (Better quality)</option>
-                    <option value="maximum">Maximum (Best quality)</option>
-                  </select>
-                </div>
-
-                {/* Format Setting */}
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Output Format (Optional)
-                  </label>
-                  <select
-                    value={format}
-                    onChange={(e) => setFormat(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  >
-                    <option value="">Keep Original</option>
-                    <option value="webp">WebP</option>
-                    <option value="jpeg">JPEG</option>
-                    <option value="png">PNG</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Error Message */}
-              {error && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6 flex items-center">
-                  <XCircle className="w-5 h-5 mr-2 flex-shrink-0" />
-                  <span>{error}</span>
-                </div>
-              )}
-
-              {/* Action Buttons */}
-              <div className="flex gap-4">
-                <button
-                  onClick={handleUpload}
-                  disabled={uploading || files.length === 0}
-                  className="btn-primary flex-1 flex items-center justify-center"
-                >
-                  {uploading ? (
-                    <>
-                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                      Compressing...
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="w-5 h-5 mr-2" />
-                      Compress Images
-                    </>
-                  )}
-                </button>
-                {files.length > 0 && (
-                  <button onClick={handleReset} className="btn-secondary">
-                    Clear
-                  </button>
-                )}
-              </div>
-            </>
-          ) : (
-            /* Success Result */
-            <div className="text-center">
-              <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-              <h2 className="text-2xl font-bold text-gray-800 mb-2">
-                Compression Complete!
-              </h2>
-              <p className="text-gray-600 mb-6">
-                Your images have been compressed and are ready to download
+        <div className="card mb-6">
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Select Images
+            </label>
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              onDragOver={handleDragOver}
+              onDrop={handleDrop}
+              className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-500 transition-colors cursor-pointer bg-gray-50"
+            >
+              <Upload className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+              <p className="text-gray-600 mb-1">
+                Click to upload or drag and drop
               </p>
-              {/* Stats */}
-              <div className="bg-gray-50 rounded-lg p-4 mb-6">
-                <div className="grid grid-cols-2 gap-4 text-center">
-                  <div>
-                    <p className="text-sm text-gray-600">Batch ID</p>
-                    <p className="font-semibold text-gray-800">
-                      {result.batchId}
-                    </p>
+              <p className="text-sm text-gray-500">
+                Supports: PNG, JPG, WEBP (Max 10 files, 5MB each)
+              </p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept="image/*"
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+            </div>
+          </div>
+
+          {files.length > 0 && (
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Selected Files ({files.length})
+              </label>
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {files.map((file, index) => (
+                  <div
+                    key={index}
+                    className="flex items-center justify-between bg-gray-50 p-3 rounded-lg"
+                  >
+                    <div className="flex items-center space-x-3 flex-1 min-w-0">
+                      <Image className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">
+                          {file.name}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {formatFileSize(file.size)}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => removeFile(index)}
+                      className="ml-3 text-gray-400 hover:text-red-500 transition-colors flex-shrink-0"
+                      disabled={isProcessing}
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
                   </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Expires At</p>
-                    <p className="font-semibold text-gray-800">
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Compression Quality
+              </label>
+              <select
+                value={quality}
+                onChange={(e) => setQuality(e.target.value)}
+                disabled={isProcessing}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
+              >
+                <option value="low">Low (Smallest file)</option>
+                <option value="medium">Medium (Balanced)</option>
+                <option value="high">High (Better quality)</option>
+                <option value="maximum">Maximum (Best quality)</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Output Format
+              </label>
+              <select
+                value={format}
+                onChange={(e) => setFormat(e.target.value)}
+                disabled={isProcessing}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
+              >
+                <option value="">Keep Original</option>
+                <option value="jpg">JPG</option>
+                <option value="png">PNG</option>
+                <option value="webp">WebP</option>
+              </select>
+            </div>
+          </div>
+
+          {isProcessing && (
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium text-gray-700">
+                  Processing...
+                </span>
+                <span className="text-sm font-medium text-blue-600">
+                  {uploadProgress}%
+                </span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                <div
+                  className="bg-blue-600 h-3 rounded-full transition-all duration-300 ease-out"
+                  style={{ width: `${uploadProgress}%` }}
+                />
+              </div>
+              <p className="text-xs text-gray-500 mt-2 text-center">
+                Uploading and compressing your images...
+              </p>
+            </div>
+          )}
+
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-sm text-red-600">{error}</p>
+            </div>
+          )}
+
+          {downloadUrl && !isProcessing && (
+            <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+              <div className="flex items-start space-x-3">
+                <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-green-800 mb-2">
+                    Images compressed successfully!
+                  </p>
+                  <button
+                    onClick={handleDownload}
+                    className="inline-flex items-center space-x-2 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Download ZIP</span>
+                  </button>
+                  <div className="text-left mt-8 text-green-800 text-m">
+                    <p>Images are automatically deleted after 5 hours</p>
+                    <p className="text-sm text-green-800">Expires At</p>
+                    <p className="font-semibold text-green-800">
                       {new Date(result.expiresAt).toLocaleString()}
                     </p>
                   </div>
                 </div>
               </div>
-              {/* Download Button */}
-
-              <a
-                href={result.downloadUrl}
-                className="btn-primary inline-flex items-center mb-4"
-                download
-              >
-                <Download className="w-5 h-5 mr-2" />
-                Download ZIP
-              </a>
-              {/* Start Over Button */}
-              <button onClick={handleReset} className="btn-secondary w-full">
-                Compress More Images
-              </button>
             </div>
           )}
+
+          <div className="flex space-x-3">
+            <button
+              onClick={handleUpload}
+              disabled={files.length === 0 || isProcessing || downloadUrl}
+              className="btn-primary flex-1 flex items-center justify-center space-x-2"
+            >
+              {isProcessing ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>Processing...</span>
+                </>
+              ) : downloadUrl ? (
+                <>
+                  <CheckCircle2 className="w-5 h-5" />
+                  <span>Done!</span>
+                </>
+              ) : (
+                <>
+                  <Upload className="w-5 h-5" />
+                  <span>Compress Images</span>
+                </>
+              )}
+            </button>
+
+            {(files.length > 0 || downloadUrl) && (
+              <button
+                onClick={reset}
+                disabled={isProcessing}
+                className="btn-secondary"
+              >
+                Reset
+              </button>
+            )}
+          </div>
+          <div className="text-center mt-5 text-gray-500 text-sm">
+            <p>Images are automatically deleted after 5 hours</p>
+          </div>
         </div>
 
-        {/* Footer */}
-        <div className="text-center mt-8 text-gray-500 text-sm">
-          <p>Files are automatically deleted after 5 hours</p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center mb-3">
+              <Upload className="w-5 h-5 text-blue-600" />
+            </div>
+            <h3 className="font-semibold text-gray-900 mb-1">
+              Batch Processing
+            </h3>
+            <p className="text-sm text-gray-600">
+              Compress multiple images at once
+            </p>
+          </div>
+
+          <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+            <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center mb-3">
+              <Image className="w-5 h-5 text-purple-600" />
+            </div>
+            <h3 className="font-semibold text-gray-900 mb-1">
+              Format Conversion
+            </h3>
+            <p className="text-sm text-gray-600">
+              Convert to JPG, PNG, or WebP
+            </p>
+          </div>
+
+          <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+            <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center mb-3">
+              <Download className="w-5 h-5 text-green-600" />
+            </div>
+            <h3 className="font-semibold text-gray-900 mb-1">Easy Download</h3>
+            <p className="text-sm text-gray-600">
+              Get all images in a single ZIP
+            </p>
+          </div>
         </div>
       </div>
     </div>
